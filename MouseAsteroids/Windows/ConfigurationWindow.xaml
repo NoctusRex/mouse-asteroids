@@ -1,0 +1,15 @@
+﻿<Window x:Class="MouseAsteroids.Windows.ConfigurationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:MouseAsteroids.Windows"
+        mc:Ignorable="d"
+        Title="ConfigurationWindow" Height="450" Width="450" ResizeMode="NoResize" Loaded="Window_Loaded" Topmost="True" MouseWheel="Grid_MouseWheel" KeyDown="Grid_KeyDown">
+    <Grid >
+        <Label x:Name="label" Content="Scroll up or down to adjust the displayed cursor to your original cursor size." HorizontalAlignment="Stretch" Margin="0,16,0,0" VerticalAlignment="Top" Width="417" HorizontalContentAlignment="Center"/>
+        <Image x:Name="CursorImage" Height="100" Margin="175,58,175,0" VerticalAlignment="Top" Width="100" Stretch="None"/>
+        <Label x:Name="label_Copy" Content="Press 'Enter' to save." Margin="16,187,16,0" VerticalAlignment="Top" Width="417" HorizontalContentAlignment="Center"/>
+        <Label x:Name="ScaleLabel" Content="Scale: 100%" Margin="16,160,16,0" VerticalAlignment="Top" Width="417" HorizontalContentAlignment="Center"/>
+    </Grid>
+</Window>

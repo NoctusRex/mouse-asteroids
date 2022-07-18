@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace MouseAsteroids
 {
-    public static class WindowsCurstorApi
+    public static class WindowsCursorApi
     {
         #region Class Variables
 

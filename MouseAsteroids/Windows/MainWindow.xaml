@@ -10,6 +10,6 @@
         VerticalContentAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Disabled" SizeToContent="WidthAndHeight" 
         KeyDown="Window_KeyDown" Background="Transparent" AllowsTransparency="True" Cursor="None" Closing="Window_Closing" KeyUp="Window_KeyUp" >
     <Grid x:Name="MainGrid">
-        <Canvas x:Name="GameCanvas" Background="Transparent" />
+        <Canvas x:Name="GameCanvas" Background="#02FFFFFF" />
     </Grid>
 </Window>

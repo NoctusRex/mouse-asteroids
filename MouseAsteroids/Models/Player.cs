@@ -39,6 +39,6 @@ namespace MouseAsteroids.Models
             }
         }
         public int RotationSpeed { get; set; }
-
+        public double Scale { get; set; } = 1;
     }
 }

@@ -22,6 +22,8 @@ using System.Windows.Interop;
 using MouseAsteroids.Models;
 using System.Drawing.Drawing2D;
 using Brushes = System.Drawing.Brushes;
+using MouseAsteroids.Utils;
+using MouseAsteroids.Windows;
 
 namespace MouseAsteroids
 {
@@ -33,18 +35,21 @@ namespace MouseAsteroids
         private Task GameTask { get; set; }
         private bool Run { get; set; } = true;
         private Bitmap? CursorBitmap { get; set; }
-        private BitmapSource? CursorBitmapSource { get; set; }
-        private int TickSpeed => 1000 / 60;
+        private int UpdateTickSpeed => 1000 / 30;
+        private DateTime LastUpdateTick { get; set; }
         private Player Player { get; set; } = new();
         private bool ForwardDown { get; set; }
         private bool RotateLeftDown { get; set; }
         private bool RotateRightDown { get; set; }
         private Vector LastPlayerDirection { get; set; }
+        private Image CursorImage { get; set; } = new Image();
+        private Configuration Configuration { get; set; } 
 
         public MainWindow()
         {
             InitializeComponent();
 
+            Configuration = ConfigurationUtils.Load();
             GameTask = new Task(() => GameLoop());
         }
 
@@ -63,8 +68,40 @@ namespace MouseAsteroids
             MainGrid.Width = screenWidth;
             MainGrid.Height = screenHeight;
 
-            CursorBitmap = WindowsCurstorApi.CaptureCursor();
+            CursorBitmap = WindowsCursorApi.CaptureCursor();
+            if (CursorBitmap != null)
+            {
+                CursorBitmap = ImageUtils.ScaleBitmap(CursorBitmap, Configuration.Scale);
+                CursorBitmap.MakeTransparent(System.Drawing.Color.Black);
+            }
 
+            GameTask.Start();
+        }
+
+        private void GameLoop()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                SetupGame();
+
+                while (Run)
+                {
+                    if (LastUpdateTick.AddMilliseconds(UpdateTickSpeed) < DateTime.Now)
+                    {
+                        UpdatePlayerPosition();
+
+                        LastUpdateTick = DateTime.Now;
+                    }
+
+                    DrawGameCursor();
+                    DoEvents();
+                    Thread.Sleep(5);
+                }
+            });
+        }
+
+        private void SetupGame()
+        {
             var cursorPos = System.Windows.Forms.Cursor.Position;
 
             Player = new()
@@ -74,35 +111,43 @@ namespace MouseAsteroids
                 Position = PointFromScreen(new(cursorPos.X, cursorPos.Y)),
                 Speed = 0,
                 MaxSpeed = 10,
-                RotationSpeed = 5
+                RotationSpeed = 5,
+                Scale = Configuration.Scale
             };
 
-            GameTask.Start();
-        }
+            CursorImage = new Image();
+            GameCanvas.Children.Add(CursorImage);
 
-        private void GameLoop()
-        {
-            Dispatcher.Invoke(() =>
-            {
-                while (Run)
-                {
-                    GameCanvas.Children.Clear();
-
-                    HideWindowsCursor();
-                    UpdatePlayerPosition();
-                    DrawGameCursor();
-
-                    DoEvents();
-                    Thread.Sleep(TickSpeed);
-                }
-            });
+            LastUpdateTick = DateTime.Now;
         }
 
         private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
             switch (e.Key)
             {
+                case Key.C:
+                    ConfigurationWindow window = new();
+                    bool? dialogResult = window.ShowDialog();
+                    if (dialogResult.HasValue && dialogResult.Value)
+                    {
+                        Player.Scale = window.Scale;
+                    }
+                    if (CursorBitmap is null) return;
+
+                    CursorBitmap = ImageUtils.ScaleBitmap(CursorBitmap, Player.Scale);
+                    CursorBitmap.MakeTransparent(System.Drawing.Color.Black);
+
+                    break;
                 case Key.Escape:
+                    if (CursorBitmap != null)
+                    {
+                        System.Windows.Point playerPositionOnScreen = PointToScreen(Player.Position);
+                        int xOffset = (int)Player.Direction.X * CursorBitmap.Width;
+                        int yOffset = (int)Player.Direction.Y * CursorBitmap.Height;
+
+                        System.Windows.Forms.Cursor.Position = new((int)playerPositionOnScreen.X + xOffset, (int)playerPositionOnScreen.Y + yOffset);
+                    }
+
                     Close();
                     break;
                 case Key.W:
@@ -115,6 +160,8 @@ namespace MouseAsteroids
                 case Key.A:
                     RotateLeftDown = true;
                     RotateRightDown = false;
+                    break;
+                case Key.Space:
                     break;
             }
         }
@@ -150,17 +197,6 @@ namespace MouseAsteroids
                 System.Windows.Application.Current?.Dispatcher?.Invoke(DispatcherPriority.Background, new Action(delegate { }));
             }
             catch { }
-        }
-
-        /// <summary>
-        /// Because the window is transparent the window can not be focused
-        /// Therefor the mouse is visible and is able to click on the underlying windows
-        /// On the canvas a rectangle is drawn making the cursor focus the window
-        /// </summary>
-        private void HideWindowsCursor()
-        {
-            DrawRectangle(Colors.White, Colors.White, (int)Width, (int)Height, 1, 0, 0, 0.01);
-            System.Windows.Forms.Cursor.Position = new System.Drawing.Point(1, 1);
         }
 
         private void UpdatePlayerPosition()
@@ -235,57 +271,35 @@ namespace MouseAsteroids
 
             using Bitmap copy = new(CursorBitmap.Width + 20, CursorBitmap.Height + 20);
             using Graphics graphics = Graphics.FromImage(copy);
-            graphics.DrawImage((Bitmap)CursorBitmap.Clone(), 10, 10);
+            graphics.DrawImage(CursorBitmap, 10, 10);
 
             if (ForwardDown)
             {
-                Font font = new("Tahoma", 8);
-                string thruster = "X";
+                Font font = new("Tahoma", (int)(8 * Player.Scale));
+                string thruster = $"X";
 
                 graphics.DrawString(thruster,
-                                   font,
+                                    font,
                                     Brushes.OrangeRed,
                                     new PointF(copy.Width / 2 - (graphics.MeasureString(thruster, font).Width / 2), CursorBitmap.Height));
+
+                Font font2 = new("Tahoma", (int)(5 * Player.Scale));
+
+                graphics.DrawString(thruster,
+                                    font2,
+                                    Brushes.Yellow,
+                                    new PointF(
+                                        copy.Width / 2 - (graphics.MeasureString(thruster, font2).Width / 2),
+                                        CursorBitmap.Height)
+                                    );
             }
 
-            using Bitmap rotatedCopy = RotateBitmap(copy, Player.Rotation + 20); // I cheated here with the +20, the cursor icon is not facing upwards by default
+            // I cheated here with the +20, the cursor icon is not facing upwards by default
+            CursorImage.Source = ImageUtils.BitmapToSource(ImageUtils.RotateBitmap(copy, Player.Rotation + 20));
 
-            CursorBitmapSource = Imaging.CreateBitmapSourceFromHBitmap(rotatedCopy.GetHbitmap(), IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-
-            Image image = new()
-            {
-                Source = CursorBitmapSource
-            };
-
-            Canvas.SetLeft(image, Player.Position.X);
-            Canvas.SetTop(image, Player.Position.Y);
-
-            GameCanvas.Children.Add(image);
+            Canvas.SetLeft(CursorImage, Player.Position.X);
+            Canvas.SetTop(CursorImage, Player.Position.Y);
         }
 
-        /// <summary>
-        /// https://stackoverflow.com/questions/2225363/c-sharp-rotate-bitmap-90-degrees
-        /// </summary>
-        private Bitmap RotateBitmap(Bitmap input, float angle)
-        {
-            //Open the source image and create the bitmap for the rotatated image
-            using Bitmap sourceImage = new(input);
-            using Bitmap rotateImage = new(sourceImage.Width, sourceImage.Height);
-
-            //Set the resolution for the rotation image
-            rotateImage.SetResolution(sourceImage.HorizontalResolution, sourceImage.VerticalResolution);
-
-            //Create a graphics object
-            using (Graphics gdi = Graphics.FromImage(rotateImage))
-            {
-                //Rotate the image
-                gdi.TranslateTransform((float)sourceImage.Width / 2, (float)sourceImage.Height / 2);
-                gdi.RotateTransform(angle);
-                gdi.TranslateTransform(-(float)sourceImage.Width / 2, -(float)sourceImage.Height / 2);
-                gdi.DrawImage(sourceImage, new System.Drawing.Point(0, 0));
-            }
-
-            return (Bitmap)rotateImage.Clone();
-        }
     }
 }
