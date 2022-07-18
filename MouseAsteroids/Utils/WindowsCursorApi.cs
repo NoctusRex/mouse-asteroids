@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
 
 namespace MouseAsteroids
 {
@@ -73,6 +74,18 @@ namespace MouseAsteroids
                 }
             }
             return null;
+        }
+
+        public static bool IsNormalCursor()
+        {
+            CURSORINFO cursorInfo = new();
+            cursorInfo.cbSize = Marshal.SizeOf(cursorInfo);
+            if (GetCursorInfo(out cursorInfo))
+            {
+                return cursorInfo.hCursor == Cursors.Default.Handle;
+            }
+
+            return false;
         }
     }
 }

@@ -34,16 +34,17 @@ namespace MouseAsteroids
     {
         private Task GameTask { get; set; }
         private bool Run { get; set; } = true;
-        private Bitmap? CursorBitmap { get; set; }
-        private int UpdateTickSpeed => 1000 / 30;
+        private static int UpdateTickSpeed => 1000 / 30;
         private DateTime LastUpdateTick { get; set; }
-        private Player Player { get; set; } = new();
+        
         private bool ForwardDown { get; set; }
         private bool RotateLeftDown { get; set; }
         private bool RotateRightDown { get; set; }
-        private Vector LastPlayerDirection { get; set; }
-        private Image CursorImage { get; set; } = new Image();
-        private Configuration Configuration { get; set; } 
+        
+        private Configuration Configuration { get; set; }
+
+        private Player Player { get; set; } = new();
+        private List<Entity> Entities { get; set; } = new();
 
         public MainWindow()
         {
@@ -68,12 +69,7 @@ namespace MouseAsteroids
             MainGrid.Width = screenWidth;
             MainGrid.Height = screenHeight;
 
-            CursorBitmap = WindowsCursorApi.CaptureCursor();
-            if (CursorBitmap != null)
-            {
-                CursorBitmap = ImageUtils.ScaleBitmap(CursorBitmap, Configuration.Scale);
-                CursorBitmap.MakeTransparent(System.Drawing.Color.Black);
-            }
+            SetupGame();
 
             GameTask.Start();
         }
@@ -82,18 +78,16 @@ namespace MouseAsteroids
         {
             Dispatcher.Invoke(() =>
             {
-                SetupGame();
-
                 while (Run)
                 {
                     if (LastUpdateTick.AddMilliseconds(UpdateTickSpeed) < DateTime.Now)
                     {
-                        UpdatePlayerPosition();
+                        Update();
 
                         LastUpdateTick = DateTime.Now;
                     }
 
-                    DrawGameCursor();
+                    Draw();
                     DoEvents();
                     Thread.Sleep(5);
                 }
@@ -115,8 +109,17 @@ namespace MouseAsteroids
                 Scale = Configuration.Scale
             };
 
-            CursorImage = new Image();
-            GameCanvas.Children.Add(CursorImage);
+            Player.CursorBitmap = WindowsCursorApi.CaptureCursor();
+            if (Player.CursorBitmap != null)
+            {
+                Player.CursorBitmap = ImageUtils.ScaleBitmap(Player.CursorBitmap, Configuration.Scale);
+                Player.CursorBitmap.MakeTransparent(System.Drawing.Color.Black);
+            }
+            Player.IsNormalCursor = WindowsCursorApi.IsNormalCursor();
+
+            Player.CanvasElement = new Image();
+            GameCanvas.Children.Add(Player.CanvasElement);
+            Entities.Add(Player);
 
             LastUpdateTick = DateTime.Now;
         }
@@ -132,18 +135,18 @@ namespace MouseAsteroids
                     {
                         Player.Scale = window.Scale;
                     }
-                    if (CursorBitmap is null) return;
+                    if (Player.CursorBitmap is null) return;
 
-                    CursorBitmap = ImageUtils.ScaleBitmap(CursorBitmap, Player.Scale);
-                    CursorBitmap.MakeTransparent(System.Drawing.Color.Black);
+                    Player.CursorBitmap = ImageUtils.ScaleBitmap(Player.CursorBitmap, Player.Scale);
+                    Player.CursorBitmap.MakeTransparent(System.Drawing.Color.Black);
 
                     break;
                 case Key.Escape:
-                    if (CursorBitmap != null)
+                    if (Player.CursorBitmap != null)
                     {
                         System.Windows.Point playerPositionOnScreen = PointToScreen(Player.Position);
-                        int xOffset = (int)Player.Direction.X * CursorBitmap.Width;
-                        int yOffset = (int)Player.Direction.Y * CursorBitmap.Height;
+                        int xOffset = (int)Player.Direction.X * Player.CursorBitmap.Width;
+                        int yOffset = (int)Player.Direction.Y * Player.CursorBitmap.Height;
 
                         System.Windows.Forms.Cursor.Position = new((int)playerPositionOnScreen.X + xOffset, (int)playerPositionOnScreen.Y + yOffset);
                     }
@@ -162,6 +165,11 @@ namespace MouseAsteroids
                     RotateRightDown = false;
                     break;
                 case Key.Space:
+                    if (Player.CursorBitmap is null) return;
+
+                    Projectile projectile = new(Player.Direction, new (Player.Position.X + (Player.CursorBitmap.Width / 2), Player.Position.Y + (Player.CursorBitmap.Height/ 2)) , Player.Scale);
+                    Entities.Add(projectile);
+                    GameCanvas.Children.Add(projectile.CanvasElement);
                     break;
             }
         }
@@ -190,7 +198,7 @@ namespace MouseAsteroids
             Run = false;
         }
 
-        private void DoEvents()
+        private static void DoEvents()
         {
             try
             {
@@ -199,40 +207,43 @@ namespace MouseAsteroids
             catch { }
         }
 
-        private void UpdatePlayerPosition()
+        private void Update()
         {
-            if (ForwardDown)
+            for(int i = Entities.Count - 1; i >= 0; i--)
             {
-                Player.Speed = Math.Min(Player.Speed + Player.Acceleration, Player.MaxSpeed);
-            }
+                Dictionary<string, object> parameters = new();
 
-            if (RotateLeftDown)
+                parameters.Add("Width", Width);
+                parameters.Add("Height", Height);
+
+                if (Entities[i] is Player)
+                {
+                    parameters.Add("ForwardDown", ForwardDown);
+                    parameters.Add("RotateLeftDown", RotateLeftDown);
+                    parameters.Add("RotateRightDown", RotateRightDown);
+                }
+
+                Entities[i].Update(parameters);
+                if (Entities[i].Destroyed)
+                {
+                    GameCanvas.Children.Remove(Entities[i].CanvasElement);
+                    Entities.Remove(Entities[i]);
+                }
+            }
+        }
+        private void Draw()
+        {
+            foreach (Entity entity in Entities)
             {
-                Player.Rotation -= Player.RotationSpeed;
+                Dictionary<string, object> parameters = new();
+
+                if (entity is Player)
+                {
+                    parameters.Add("ForwardDown", ForwardDown);
+                }
+
+                entity.Draw(parameters);
             }
-
-            if (RotateRightDown)
-            {
-                Player.Rotation += Player.RotationSpeed;
-            }
-
-            if (Player.Speed <= 0) return;
-
-            double x = Player.Position.X + (Math.Round(ForwardDown ? Player.Direction.X : LastPlayerDirection.X, 2) * Player.Speed);
-            double y = Player.Position.Y + (Math.Round(ForwardDown ? Player.Direction.Y : LastPlayerDirection.Y, 2) * Player.Speed);
-
-            if (x < 0) x = 0;
-            if (y < 0) y = 0;
-
-            if (x > Width - CursorBitmap?.Width) x = Width;
-            if (y > Height - CursorBitmap?.Height) y = Height;
-
-            Player.Position = new((int)x, (int)y);
-
-            if (ForwardDown)
-                LastPlayerDirection = Player.Direction;
-            else
-                Player.Speed = Math.Max(Player.Speed - Player.Deceleration, 0);
         }
 
         private void DrawRectangle(System.Windows.Media.Color stroke, System.Windows.Media.Color fill, int width, int height, int thickness, double x, double y, double opacity = 1)
@@ -264,42 +275,5 @@ namespace MouseAsteroids
             Canvas.SetTop(textBlock, y);
             GameCanvas.Children.Add(textBlock);
         }
-
-        private void DrawGameCursor()
-        {
-            if (CursorBitmap is null) return;
-
-            using Bitmap copy = new(CursorBitmap.Width + 20, CursorBitmap.Height + 20);
-            using Graphics graphics = Graphics.FromImage(copy);
-            graphics.DrawImage(CursorBitmap, 10, 10);
-
-            if (ForwardDown)
-            {
-                Font font = new("Tahoma", (int)(8 * Player.Scale));
-                string thruster = $"X";
-
-                graphics.DrawString(thruster,
-                                    font,
-                                    Brushes.OrangeRed,
-                                    new PointF(copy.Width / 2 - (graphics.MeasureString(thruster, font).Width / 2), CursorBitmap.Height));
-
-                Font font2 = new("Tahoma", (int)(5 * Player.Scale));
-
-                graphics.DrawString(thruster,
-                                    font2,
-                                    Brushes.Yellow,
-                                    new PointF(
-                                        copy.Width / 2 - (graphics.MeasureString(thruster, font2).Width / 2),
-                                        CursorBitmap.Height)
-                                    );
-            }
-
-            // I cheated here with the +20, the cursor icon is not facing upwards by default
-            CursorImage.Source = ImageUtils.BitmapToSource(ImageUtils.RotateBitmap(copy, Player.Rotation + 20));
-
-            Canvas.SetLeft(CursorImage, Player.Position.X);
-            Canvas.SetTop(CursorImage, Player.Position.Y);
-        }
-
     }
 }
