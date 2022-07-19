@@ -1,6 +1,8 @@
-﻿using System;
+﻿using MouseAsteroids.Utils;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Media;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -15,8 +17,8 @@ namespace MouseAsteroids.Models
         private Ellipse Ellipse { get; set; }
         public override UIElement CanvasElement { get => Ellipse; set => Ellipse = (Ellipse)value; }
         public int Size { get; set; }
-        public int MaxSize => 5;
-        private int BaseSize => 30;
+        public static int MaxSize => 5;
+        private static int BaseSize => 30;
 
         public Asteroid(Vector direction, Point position, int size)
         {
@@ -68,6 +70,7 @@ namespace MouseAsteroids.Models
         {
             if (collider is Projectile)
             {
+                BeepUtils.Beep(100, 100);
                 Destroyed = true;
                 collider.Destroyed = true;
 

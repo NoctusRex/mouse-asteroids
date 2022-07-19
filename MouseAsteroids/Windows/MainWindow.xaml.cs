@@ -1,16 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Drawing;
 using System.Windows.Forms;
@@ -18,12 +13,11 @@ using System.Threading;
 using Rectangle = System.Windows.Shapes.Rectangle;
 using System.Windows.Threading;
 using Image = System.Windows.Controls.Image;
-using System.Windows.Interop;
 using MouseAsteroids.Models;
 using System.Drawing.Drawing2D;
-using Brushes = System.Drawing.Brushes;
 using MouseAsteroids.Utils;
 using MouseAsteroids.Windows;
+using System.Media;
 
 namespace MouseAsteroids
 {
@@ -83,6 +77,12 @@ namespace MouseAsteroids
             {
                 while (Run)
                 {
+                    if (Player.Destroyed)
+                    {
+                        Run = false;
+                        Close();
+                    }
+
                     if (LastUpdateTick.AddMilliseconds(UpdateTickSpeed) < DateTime.Now)
                     {
                         Update();
@@ -101,7 +101,7 @@ namespace MouseAsteroids
                             x += 0.1;
                             y += 0.1;
 
-                            Asteroid asteroid = new(new(x, y), new(Random.Next(0, (int)Width), -300), 5);
+                            Asteroid asteroid = new(new(x, y), new(Random.Next(0, (int)Width), -300), Asteroid.MaxSize);
                             Entities.Add(asteroid);
                             GameCanvas.Children.Add(asteroid.CanvasElement);
                         }
@@ -190,6 +190,8 @@ namespace MouseAsteroids
                     if (Player.CursorBitmap is null) return;
                     if (!SpaceDown)
                     {
+                        BeepUtils.Beep(1000, 50);
+
                         Projectile projectile = new(Player.Direction, new(Player.Position.X + (Player.CursorBitmap.Width / 2), Player.Position.Y + (Player.CursorBitmap.Height / 2)), Player.Scale);
                         Entities.Add(projectile);
                         GameCanvas.Children.Add(projectile.CanvasElement);
@@ -256,6 +258,8 @@ namespace MouseAsteroids
                 foreach (Entity entity in Entities.ToList())
                 {
                     if (Entities[i] == entity) continue;
+                    if (Entities[i].Destroyed || entity.Destroyed) continue;
+
                     parameters.TryAdd("Entities", Entities);
                     parameters.TryAdd("Canvas", GameCanvas);
 
@@ -289,40 +293,10 @@ namespace MouseAsteroids
             }
         }
 
-        private void DrawRectangle(System.Windows.Media.Color stroke, System.Windows.Media.Color fill, int width, int height, int thickness, double x, double y, double opacity = 1)
-        {
-            Rectangle rectangle = new()
-            {
-                Stroke = new SolidColorBrush(stroke) { Opacity = opacity },
-                Fill = new SolidColorBrush(fill) { Opacity = opacity },
-                Width = width,
-                Height = height,
-                StrokeThickness = thickness
-            };
-
-            Canvas.SetLeft(rectangle, x);
-            Canvas.SetTop(rectangle, y);
-
-            GameCanvas.Children.Add(rectangle);
-        }
-
-        private void DrawText(string text, int x, int y, System.Windows.Media.Color color)
-        {
-            TextBlock textBlock = new()
-            {
-                Text = text,
-                Foreground = new SolidColorBrush(color),
-            };
-
-            Canvas.SetLeft(textBlock, x);
-            Canvas.SetTop(textBlock, y);
-            GameCanvas.Children.Add(textBlock);
-        }
-
         /// <summary>
         /// https://social.msdn.microsoft.com/Forums/en-US/8abf1a61-cf81-4b6f-ad83-1d71cb9c7353/how-to-create-a-game-with-ellipse-collision?forum=csharpgeneral
         /// </summary>
-        private bool Collides(Entity entity1, Entity entity2)
+        private static bool Collides(Entity entity1, Entity entity2)
         {
             if (entity1.CanvasElement is Ellipse ellipse1 && entity2.CanvasElement is Ellipse ellipse2)
             {
@@ -336,6 +310,19 @@ namespace MouseAsteroids
                 return region.GetRegionScans(new System.Drawing.Drawing2D.Matrix(1, 0, 0, 1, 0, 0)).Length > 0;
             }
 
+            if (entity1 is Player player &&  entity2 is Asteroid && entity2.CanvasElement is Ellipse ellipse)
+            {
+                if (player.CursorBitmap is null) return false;
+
+                using GraphicsPath graphicsPath = new();
+                using GraphicsPath graphicsPath2 = new();
+                graphicsPath.AddEllipse((int)entity1.Position.X, (int)entity1.Position.Y, player.CursorBitmap.Width, player.CursorBitmap.Height);
+                graphicsPath2.AddEllipse((int)entity2.Position.X, (int)entity2.Position.Y, (int)ellipse.Width, (int)ellipse.Height);
+
+                using Region region = new(graphicsPath);
+                region.Intersect(graphicsPath2);
+                return region.GetRegionScans(new System.Drawing.Drawing2D.Matrix(1, 0, 0, 1, 0, 0)).Length > 0;
+            }
 
             return false;
         }

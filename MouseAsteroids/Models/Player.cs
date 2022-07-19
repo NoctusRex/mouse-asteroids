@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Media;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -86,7 +87,6 @@ namespace MouseAsteroids.Models
             else
                 Speed = Math.Max(Speed - Deceleration, 0);
         }
-
         public override void Draw(Dictionary<string, object>? parameters = null)
         {
             if (parameters == null) return;
@@ -127,6 +127,12 @@ namespace MouseAsteroids.Models
 
             Canvas.SetLeft(CursorImage, Position.X);
             Canvas.SetTop(CursorImage, Position.Y);
+        }
+
+        public override void OnCollision(Entity collider, Dictionary<string, object>? parameters = null)
+        {
+            BeepUtils.Beep(500, 1000);
+            Destroyed = true;
         }
     }
 }
