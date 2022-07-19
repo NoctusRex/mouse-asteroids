@@ -36,15 +36,18 @@ namespace MouseAsteroids
         private bool Run { get; set; } = true;
         private static int UpdateTickSpeed => 1000 / 30;
         private DateTime LastUpdateTick { get; set; }
-        
+
         private bool ForwardDown { get; set; }
         private bool RotateLeftDown { get; set; }
         private bool RotateRightDown { get; set; }
-        
+        private bool SpaceDown { get; set; }
+
         private Configuration Configuration { get; set; }
 
         private Player Player { get; set; } = new();
         private List<Entity> Entities { get; set; } = new();
+
+        private Random Random { get; set; } = new();
 
         public MainWindow()
         {
@@ -83,6 +86,25 @@ namespace MouseAsteroids
                     if (LastUpdateTick.AddMilliseconds(UpdateTickSpeed) < DateTime.Now)
                     {
                         Update();
+
+                        if (Entities.Where(x => x is Asteroid).Count() < 3)
+                        {
+                            double x = Random.Next(-1, 1);
+                            double y = Random.Next(-1, 1);
+
+                            if (x + y == 0)
+                            {
+                                x = 1;
+                                y = -1;
+                            }
+
+                            x += 0.1;
+                            y += 0.1;
+
+                            Asteroid asteroid = new(new(x, y), new(Random.Next(0, (int)Width), -300), 5);
+                            Entities.Add(asteroid);
+                            GameCanvas.Children.Add(asteroid.CanvasElement);
+                        }
 
                         LastUpdateTick = DateTime.Now;
                     }
@@ -166,10 +188,13 @@ namespace MouseAsteroids
                     break;
                 case Key.Space:
                     if (Player.CursorBitmap is null) return;
-
-                    Projectile projectile = new(Player.Direction, new (Player.Position.X + (Player.CursorBitmap.Width / 2), Player.Position.Y + (Player.CursorBitmap.Height/ 2)) , Player.Scale);
-                    Entities.Add(projectile);
-                    GameCanvas.Children.Add(projectile.CanvasElement);
+                    if (!SpaceDown)
+                    {
+                        Projectile projectile = new(Player.Direction, new(Player.Position.X + (Player.CursorBitmap.Width / 2), Player.Position.Y + (Player.CursorBitmap.Height / 2)), Player.Scale);
+                        Entities.Add(projectile);
+                        GameCanvas.Children.Add(projectile.CanvasElement);
+                        SpaceDown = true;
+                    }
                     break;
             }
         }
@@ -190,6 +215,9 @@ namespace MouseAsteroids
                 case Key.A:
                     RotateLeftDown = false;
                     break;
+                case Key.Space:
+                    SpaceDown = false;
+                    break;
             }
         }
 
@@ -209,7 +237,7 @@ namespace MouseAsteroids
 
         private void Update()
         {
-            for(int i = Entities.Count - 1; i >= 0; i--)
+            for (int i = Entities.Count - 1; i >= 0; i--)
             {
                 Dictionary<string, object> parameters = new();
 
@@ -224,6 +252,17 @@ namespace MouseAsteroids
                 }
 
                 Entities[i].Update(parameters);
+
+                foreach (Entity entity in Entities.ToList())
+                {
+                    if (Entities[i] == entity) continue;
+                    parameters.TryAdd("Entities", Entities);
+                    parameters.TryAdd("Canvas", GameCanvas);
+
+                    if (Collides(Entities[i], entity))
+                        Entities[i].OnCollision(entity, parameters);
+                }
+
                 if (Entities[i].Destroyed)
                 {
                     GameCanvas.Children.Remove(Entities[i].CanvasElement);
@@ -231,11 +270,15 @@ namespace MouseAsteroids
                 }
             }
         }
+
         private void Draw()
         {
             foreach (Entity entity in Entities)
             {
                 Dictionary<string, object> parameters = new();
+
+                parameters.Add("Width", Width);
+                parameters.Add("Height", Height);
 
                 if (entity is Player)
                 {
@@ -274,6 +317,27 @@ namespace MouseAsteroids
             Canvas.SetLeft(textBlock, x);
             Canvas.SetTop(textBlock, y);
             GameCanvas.Children.Add(textBlock);
+        }
+
+        /// <summary>
+        /// https://social.msdn.microsoft.com/Forums/en-US/8abf1a61-cf81-4b6f-ad83-1d71cb9c7353/how-to-create-a-game-with-ellipse-collision?forum=csharpgeneral
+        /// </summary>
+        private bool Collides(Entity entity1, Entity entity2)
+        {
+            if (entity1.CanvasElement is Ellipse ellipse1 && entity2.CanvasElement is Ellipse ellipse2)
+            {
+                using GraphicsPath graphicsPath = new();
+                using GraphicsPath graphicsPath2 = new();
+                graphicsPath.AddEllipse((int)entity1.Position.X, (int)entity1.Position.Y, (int)ellipse1.Width, (int)ellipse1.Height);
+                graphicsPath2.AddEllipse((int)entity2.Position.X, (int)entity2.Position.Y, (int)ellipse2.Width, (int)ellipse2.Height);
+
+                using Region region = new(graphicsPath);
+                region.Intersect(graphicsPath2);
+                return region.GetRegionScans(new System.Drawing.Drawing2D.Matrix(1, 0, 0, 1, 0, 0)).Length > 0;
+            }
+
+
+            return false;
         }
     }
 }

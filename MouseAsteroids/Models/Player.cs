@@ -92,19 +92,19 @@ namespace MouseAsteroids.Models
             if (parameters == null) return;
             if (CursorBitmap is null) return;
 
-            using Bitmap copy = new(CursorBitmap.Width + 20, CursorBitmap.Height + 20);
+            using Bitmap copy = new(CursorBitmap.Width, CursorBitmap.Height);
             using Graphics graphics = Graphics.FromImage(copy);
             graphics.DrawImage(CursorBitmap, 10, 10);
 
             if ((bool)parameters["ForwardDown"])
             {
                 Font font = new("Tahoma", (int)(8 * Scale));
-                string thruster = $"X";
+                string thruster = $"O";
 
                 graphics.DrawString(thruster,
                                     font,
                                     System.Drawing.Brushes.OrangeRed,
-                                    new PointF(copy.Width / 2 - (graphics.MeasureString(thruster, font).Width / 2), CursorBitmap.Height));
+                                    new PointF(copy.Width / 2 - (graphics.MeasureString(thruster, font).Width / 2), CursorBitmap.Height - (graphics.MeasureString(thruster, font).Height / 2)));
 
                 Font font2 = new("Tahoma", (int)(5 * Scale));
 
@@ -113,7 +113,7 @@ namespace MouseAsteroids.Models
                                     System.Drawing.Brushes.Yellow,
                                     new PointF(
                                         copy.Width / 2 - (graphics.MeasureString(thruster, font2).Width / 2),
-                                        CursorBitmap.Height)
+                                        CursorBitmap.Height - (graphics.MeasureString(thruster, font2).Height / 2))
                                     );
             }
 

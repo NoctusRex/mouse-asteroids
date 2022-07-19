@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 using System.Windows;
 
 namespace MouseAsteroids.Models
@@ -18,5 +14,6 @@ namespace MouseAsteroids.Models
         public abstract void Update(Dictionary<string, object>? parameters = null);
         public abstract void Draw(Dictionary<string, object>? parameters = null);
 
+        public virtual void OnCollision(Entity collider, Dictionary<string, object>? parameters = null) { }
     }
 }
